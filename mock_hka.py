@@ -2,7 +2,11 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# Datos de ejemplo que siempre devuelves
+# Ruta raíz para health check
+@app.route('/', methods=['GET', 'HEAD'])
+def index():
+    return jsonify({"status":"OK","message":"Mock HKA is up"}), 200
+
 SAMPLE_DATA = {
     "status": "OK",
     "message": "",
@@ -80,4 +84,6 @@ def send_raw():
     return jsonify({"status":"OK","message":""})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
