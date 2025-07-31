@@ -7,7 +7,7 @@ app = Flask(__name__)
 # Almacén en memoria de peticiones para el dashboard
 LOGS = []
 
-# Plantilla HTML para el dashboard (usando loop.index en lugar de enumerate)
+# Plantilla HTML para el dashboard (usa loop.index)
 DASHBOARD_TEMPLATE = """
 <!doctype html>
 <html lang="es">
@@ -66,17 +66,21 @@ def index():
 def dashboard():
     return render_template_string(DASHBOARD_TEMPLATE, logs=LOGS)
 
+SAMPLE_DATA = {
+    "status": "OK",
+    "message": "",
+    "data": {
+        "nroFiscal": 12345,
+        "serial": "ABC123456",
+        "fecha": "2025-07-01 12:00",
+        "ultimoZ": 99,
+    }
+}
+
 @app.route('/api/imprimir/factura', methods=['POST'])
 def imprimir_factura():
     log_request()
-    return jsonify({
-        "status": "OK", "message": "", "data": {
-            "nroFiscal": 12345,
-            "serial": "ABC123456",
-            "fecha": "2025-07-01 12:00",
-            "ultimoZ": 99
-        }
-    })
+    return jsonify(SAMPLE_DATA)
 
 @app.route('/api/imprimir/factura', methods=['GET'])
 def reimprimir_factura():
@@ -86,16 +90,51 @@ def reimprimir_factura():
 @app.route('/api/imprimir/nota-credito', methods=['POST'])
 def nota_credito():
     log_request()
-    return jsonify({
-        "status": "OK", "message": "", "data": {
-            "nroFiscal": 12345,
-            "serial": "ABC123456",
-            "fecha": "2025-07-01 12:00",
-            "ultimoZ": 99
-        }
-    })
+    return jsonify(SAMPLE_DATA)
 
 @app.route('/api/imprimir/nota-credito', methods=['GET'])
 def reimprimir_nota():
     log_request()
-    return jsonify
+    return jsonify({"status":"OK","message":""})
+
+@app.route('/api/imprimir/no-fiscal', methods=['POST'])
+def no_fiscal():
+    log_request()
+    return jsonify({"status":"OK","message":""})
+
+@app.route('/api/imprimir/reporte_x', methods=['GET', 'POST'])
+def reporte_x():
+    log_request()
+    return jsonify(SAMPLE_DATA)
+
+@app.route('/api/imprimir/reporte_z', methods=['GET', 'POST'])
+def reporte_z():
+    log_request()
+    return jsonify(SAMPLE_DATA)
+
+@app.route('/api/data_z', methods=['GET'])
+def data_z():
+    log_request()
+    return jsonify({
+        "status":"OK","message":"","data":{
+            "numero_ultima_factura":"100",
+            "ventas_exento":0.0,
+        }
+    })
+
+@app.route('/api/data/data_numeracion', methods=['GET'])
+def data_numeracion():
+    log_request()
+    return jsonify({
+        "status":"OK","message":"",
+        "data":{"ultimaFactura":101,"ultimaNotaCredito":5,"ultimoDocumentoNoFiscal":20,"ultimoZ":100}
+    })
+
+@app.route('/api/send-raw', methods=['POST'])
+def send_raw():
+    log_request()
+    return jsonify({"status":"OK","message":""})
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
