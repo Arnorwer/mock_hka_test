@@ -87,7 +87,8 @@ def log_request():
 
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
-    return jsonify({"status": "OK", "message": "Mock HKA is up"}), 200
+    # Redirige al dashboard principal
+    return redirect(url_for('dashboard'))
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
