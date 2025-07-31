@@ -41,7 +41,6 @@ DASHBOARD_TEMPLATE = """
 <body>
   <h1>Dashboard Mock HKA</h1>
   <div class="controls">
-    <p>Total de peticiones registradas: {{ logs|length }}</p>
     <form action="/clear-logs" method="post" style="display: inline;">
         <button type="submit">Clear Logs</button>
     </form>
@@ -170,8 +169,12 @@ SAMPLE_DATA = {
 
 @app.route('/api/imprimir/factura', methods=['POST'])
 def imprimir_factura():
+    # Registrar y devolver payload recibido para validación
+    data = request.get_json() or {}
     log_request()
-    return jsonify(SAMPLE_DATA)
+    resp = SAMPLE_DATA.copy()
+    resp['received'] = data
+    return jsonify(resp)
 
 @app.route('/api/imprimir/factura', methods=['GET'])
 def reimprimir_factura():
@@ -179,9 +182,13 @@ def reimprimir_factura():
     return jsonify({"status":"OK","message":""})
 
 @app.route('/api/imprimir/nota-credito', methods=['POST'])
+@app.route('/api/imprimir/nota-credito', methods=['POST'])
 def nota_credito():
+    data = request.get_json() or {}
     log_request()
-    return jsonify(SAMPLE_DATA)
+    resp = SAMPLE_DATA.copy()
+    resp['received'] = data
+    return jsonify(resp)
 
 @app.route('/api/imprimir/nota-credito', methods=['GET'])
 def reimprimir_nota():
