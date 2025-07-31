@@ -1,12 +1,13 @@
+
 from flask import Flask, request, jsonify, redirect, url_for
 from datetime import datetime
+import os
+
 from log_storage import append_log
 from dashboard import dashboard_bp
 
 app = Flask(__name__)
 app.register_blueprint(dashboard_bp)
-
-import os
 
 # Datos de ejemplo para las respuestas
 SAMPLE_DATA = {
@@ -16,7 +17,7 @@ SAMPLE_DATA = {
         "nroFiscal": 12345,
         "serial": "ABC123456",
         "fecha": "2025-07-01 12:00",
-        "ultimoZ": 99,
+        "ultimoZ": 99
     }
 }
 
