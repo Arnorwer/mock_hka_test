@@ -143,6 +143,20 @@ def clear_logs():
                 print(f"Error removing log file: {e}")
     return redirect(url_for('dashboard'))
 
+@app.route('/api/logs', methods=['GET'])
+def api_get_logs():
+    """Devuelve los logs en JSON para polling desde el dashboard"""
+    with log_lock:
+        try:
+            if os.path.exists(LOG_FILE):
+                with open(LOG_FILE, 'r') as f:
+                    current_logs = json.load(f)
+            else:
+                current_logs = []
+        except (IOError, json.JSONDecodeError):
+            current_logs = []
+    return jsonify(current_logs)
+
 SAMPLE_DATA = {
     "status": "OK",
     "message": "",
