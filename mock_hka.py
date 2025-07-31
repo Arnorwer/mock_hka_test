@@ -1,11 +1,25 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for
 from datetime import datetime
 import os
+import json
+import threading
 
 app = Flask(__name__)
 
 # Almacén en memoria de peticiones para el dashboard
 LOGS = []
+LOG_FILE = 'request_logs.json'
+log_lock = threading.Lock()
+
+# Cargar logs existentes al inicio
+try:
+    with log_lock:
+        if os.path.exists(LOG_FILE):
+            with open(LOG_FILE, 'r') as f:
+                LOGS = json.load(f)
+except (IOError, json.JSONDecodeError):
+    LOGS = []
+
 
 # Plantilla HTML para el dashboard (usa loop.index)
 DASHBOARD_TEMPLATE = """
@@ -21,11 +35,17 @@ DASHBOARD_TEMPLATE = """
     th { background: #f4f4f4; }
     tr:nth-child(even) { background: #fafafa; }
     pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
+    .controls { margin-bottom: 1em; }
   </style>
 </head>
 <body>
   <h1>Dashboard Mock HKA</h1>
-  <p>Total de peticiones registradas: {{ logs|length }}</p>
+  <div class="controls">
+    <p>Total de peticiones registradas: {{ logs|length }}</p>
+    <form action="/clear-logs" method="post" style="display: inline;">
+        <button type="submit">Clear Logs</button>
+    </form>
+  </div>
   <table>
     <thead>
       <tr>
@@ -39,7 +59,7 @@ DASHBOARD_TEMPLATE = """
         <td>{{ entry.time }}</td>
         <td>{{ entry.method }}</td>
         <td>{{ entry.path }}</td>
-        <td><pre>{{ entry.data }}</pre></td>
+        <td><pre>{{ entry.data | tojson(indent=2) }}</pre></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -49,14 +69,21 @@ DASHBOARD_TEMPLATE = """
 """
 
 def log_request():
-    """Registra la petición entrante en LOGS."""
+    """Registra la petición entrante en LOGS y en el fichero."""
     data = request.get_json() if request.method == 'POST' else dict(request.args)
-    LOGS.append({
+    new_log = {
         'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'method': request.method,
         'path': request.path,
         'data': data
-    })
+    }
+    with log_lock:
+        LOGS.append(new_log)
+        try:
+            with open(LOG_FILE, 'w') as f:
+                json.dump(LOGS, f, indent=2)
+        except IOError as e:
+            print(f"Error writing to log file: {e}")
 
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
@@ -64,7 +91,29 @@ def index():
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
-    return render_template_string(DASHBOARD_TEMPLATE, logs=LOGS)
+    # Leemos los logs del fichero cada vez para asegurar que están actualizados
+    with log_lock:
+        try:
+            if os.path.exists(LOG_FILE):
+                with open(LOG_FILE, 'r') as f:
+                    current_logs = json.load(f)
+            else:
+                current_logs = []
+        except (IOError, json.JSONDecodeError):
+            current_logs = []
+    return render_template_string(DASHBOARD_TEMPLATE, logs=current_logs)
+
+@app.route('/clear-logs', methods=['POST'])
+def clear_logs():
+    global LOGS
+    with log_lock:
+        LOGS = []
+        if os.path.exists(LOG_FILE):
+            try:
+                os.remove(LOG_FILE)
+            except OSError as e:
+                print(f"Error removing log file: {e}")
+    return redirect(url_for('dashboard'))
 
 SAMPLE_DATA = {
     "status": "OK",
