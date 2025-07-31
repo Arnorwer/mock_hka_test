@@ -9,7 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app code
-COPY mock_hka.py .
+COPY . .
 
 # Expose port
 EXPOSE 5000
