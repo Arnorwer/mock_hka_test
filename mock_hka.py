@@ -6,7 +6,7 @@ import threading
 
 app = Flask(__name__)
 
-# Tokens válidos desde variables de entorno
+# Tokens válidos fijos para pruebas
 VALID_TOKEN_EMPRESA = "abcd1234"
 VALID_TOKEN_PASSWORD = "abcd1234"
 
@@ -173,6 +173,8 @@ def clear_logs():
 
 @app.route('/api/logs', methods=['GET'])
 def api_get_logs():
+    if not check_auth():
+        return unauthorized()
     with log_lock:
         try:
             if os.path.exists(LOG_FILE):
