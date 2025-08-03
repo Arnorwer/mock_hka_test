@@ -115,8 +115,8 @@ DASHBOARD_TEMPLATE = """
 #  Helper: verificar token
 # ===========================
 def check_auth():
-    token_empresa = request.headers.get('X-Token-Empresa')
-    token_password = request.headers.get('X-Token-Password')
+    token_empresa = request.headers.get('X-HKA-Token')
+    token_password = request.headers.get('X-HKA-Password')
     return (token_empresa == VALID_TOKEN_EMPRESA and token_password == VALID_TOKEN_PASSWORD)
 
 # ===========================
