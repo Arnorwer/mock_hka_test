@@ -7,8 +7,8 @@ import threading
 app = Flask(__name__)
 
 # Tokens válidos desde variables de entorno
-VALID_TOKEN_EMPRESA = os.environ.get("TOKEN_EMPRESA", "abcd1234")
-VALID_TOKEN_PASSWORD = os.environ.get("TOKEN_PASSWORD", "abcd1234")
+VALID_TOKEN_EMPRESA = "abcd1234"
+VALID_TOKEN_PASSWORD = "abcd1234"
 
 # Almacén en memoria de peticiones para el dashboard
 LOGS = []
