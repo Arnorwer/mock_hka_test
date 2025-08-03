@@ -6,6 +6,10 @@ import threading
 
 app = Flask(__name__)
 
+# Tokens válidos desde variables de entorno
+VALID_TOKEN_EMPRESA = os.environ.get("TOKEN_EMPRESA", "abcd1234")
+VALID_TOKEN_PASSWORD = os.environ.get("TOKEN_PASSWORD", "abcd1234")
+
 # Almacén en memoria de peticiones para el dashboard
 LOGS = []
 LOG_FILE = 'request_logs.json'
@@ -20,8 +24,9 @@ try:
 except (IOError, json.JSONDecodeError):
     LOGS = []
 
-
-# Plantilla HTML para el dashboard (usa loop.index)
+# ===========================
+#  Dashboard HTML Template
+# ===========================
 DASHBOARD_TEMPLATE = """
 <!doctype html>
 <html lang="es">
@@ -36,6 +41,7 @@ DASHBOARD_TEMPLATE = """
     tr:nth-child(even) { background: #fafafa; }
     pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
     .controls { margin-bottom: 1em; }
+    .unauthorized { background-color: #ffe5e5; }
   </style>
 </head>
 <body>
@@ -48,17 +54,18 @@ DASHBOARD_TEMPLATE = """
   <table>
     <thead>
       <tr>
-        <th>#</th><th>Timestamp</th><th>Método</th><th>Endpoint</th><th>Datos</th>
+        <th>#</th><th>Timestamp</th><th>Método</th><th>Endpoint</th><th>Datos</th><th>Respuesta</th>
       </tr>
     </thead>
     <tbody id="log-table-body">
       {% for entry in logs|reverse %}
-      <tr>
+      <tr class="{% if entry.response and entry.response.status == 401 %}unauthorized{% endif %}">
         <td>{{ loop.index }}</td>
         <td>{{ entry.time }}</td>
         <td>{{ entry.method }}</td>
         <td>{{ entry.path }}</td>
         <td><pre>{{ entry.data | tojson(indent=2) }}</pre></td>
+        <td><pre>{{ entry.response | tojson(indent=2) }}</pre></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -71,6 +78,9 @@ DASHBOARD_TEMPLATE = """
       tbody.innerHTML = '';
       logs.slice().reverse().forEach((entry, idx) => {
         const tr = document.createElement('tr');
+        if (entry.response && entry.response.status == 401) {
+            tr.classList.add('unauthorized');
+        }
         const indexCell = document.createElement('td');
         indexCell.textContent = idx + 1;
         tr.appendChild(indexCell);
@@ -80,28 +90,46 @@ DASHBOARD_TEMPLATE = """
           tr.appendChild(td);
         });
         const dataTd = document.createElement('td');
-        const pre = document.createElement('pre');
-        pre.textContent = JSON.stringify(entry.data, null, 2);
-        dataTd.appendChild(pre);
+        const preData = document.createElement('pre');
+        preData.textContent = JSON.stringify(entry.data, null, 2);
+        dataTd.appendChild(preData);
         tr.appendChild(dataTd);
+
+        const respTd = document.createElement('td');
+        const preResp = document.createElement('pre');
+        preResp.textContent = JSON.stringify(entry.response, null, 2);
+        respTd.appendChild(preResp);
+        tr.appendChild(respTd);
+
         tbody.appendChild(tr);
       });
     }
     fetchLogs();
-    setInterval(fetchLogs, 500);
+    setInterval(fetchLogs, 1000);
   </script>
 </body>
 </html>
 """
 
-def log_request():
-    """Registra la petición entrante en LOGS y en el fichero."""
+# ===========================
+#  Helper: verificar token
+# ===========================
+def check_auth():
+    token_empresa = request.headers.get('X-Token-Empresa')
+    token_password = request.headers.get('X-Token-Password')
+    return (token_empresa == VALID_TOKEN_EMPRESA and token_password == VALID_TOKEN_PASSWORD)
+
+# ===========================
+#  Función para registrar logs
+# ===========================
+def log_request(response_data=None):
     data = request.get_json() if request.method == 'POST' else dict(request.args)
     new_log = {
         'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'method': request.method,
         'path': request.path,
-        'data': data
+        'data': data,
+        'response': response_data or {}
     }
     with log_lock:
         LOGS.append(new_log)
@@ -111,14 +139,15 @@ def log_request():
         except IOError as e:
             print(f"Error writing to log file: {e}")
 
+# ===========================
+#  Rutas principales
+# ===========================
 @app.route('/', methods=['GET', 'HEAD'])
 def index():
-    # Redirige al dashboard principal
     return redirect(url_for('dashboard'))
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
-    # Leemos los logs del fichero cada vez para asegurar que están actualizados
     with log_lock:
         try:
             if os.path.exists(LOG_FILE):
@@ -144,7 +173,6 @@ def clear_logs():
 
 @app.route('/api/logs', methods=['GET'])
 def api_get_logs():
-    """Devuelve los logs en JSON para polling desde el dashboard"""
     with log_lock:
         try:
             if os.path.exists(LOG_FILE):
@@ -156,6 +184,9 @@ def api_get_logs():
             current_logs = []
     return jsonify(current_logs)
 
+# ===========================
+#  Endpoints fiscales
+# ===========================
 SAMPLE_DATA = {
     "status": "OK",
     "message": "",
@@ -167,71 +198,100 @@ SAMPLE_DATA = {
     }
 }
 
+def unauthorized():
+    resp = {"status": 401, "message": "Unauthorized: Invalid tokens"}
+    log_request(resp)
+    return jsonify(resp), 401
+
 @app.route('/api/imprimir/factura', methods=['POST'])
 def imprimir_factura():
-    # Registrar y devolver payload recibido para validación
+    if not check_auth():
+        return unauthorized()
     data = request.get_json() or {}
-    log_request()
     resp = SAMPLE_DATA.copy()
     resp['received'] = data
+    log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/factura', methods=['GET'])
 def reimprimir_factura():
-    log_request()
-    return jsonify({"status":"OK","message":""})
+    if not check_auth():
+        return unauthorized()
+    resp = {"status": "OK", "message": ""}
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/imprimir/nota-credito', methods=['POST'])
-@app.route('/api/imprimir/nota-credito', methods=['POST'])
 def nota_credito():
+    if not check_auth():
+        return unauthorized()
     data = request.get_json() or {}
-    log_request()
     resp = SAMPLE_DATA.copy()
     resp['received'] = data
+    log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/nota-credito', methods=['GET'])
 def reimprimir_nota():
-    log_request()
-    return jsonify({"status":"OK","message":""})
+    if not check_auth():
+        return unauthorized()
+    resp = {"status": "OK", "message": ""}
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/imprimir/no-fiscal', methods=['POST'])
 def no_fiscal():
-    log_request()
-    return jsonify({"status":"OK","message":""})
+    if not check_auth():
+        return unauthorized()
+    resp = {"status": "OK", "message": ""}
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/imprimir/reporte_x', methods=['GET', 'POST'])
 def reporte_x():
-    log_request()
+    if not check_auth():
+        return unauthorized()
+    log_request(SAMPLE_DATA)
     return jsonify(SAMPLE_DATA)
 
 @app.route('/api/imprimir/reporte_z', methods=['GET', 'POST'])
 def reporte_z():
-    log_request()
+    if not check_auth():
+        return unauthorized()
+    log_request(SAMPLE_DATA)
     return jsonify(SAMPLE_DATA)
 
 @app.route('/api/data_z', methods=['GET'])
 def data_z():
-    log_request()
-    return jsonify({
-        "status":"OK","message":"","data":{
-            "numero_ultima_factura":"100",
-            "ventas_exento":0.0,
+    if not check_auth():
+        return unauthorized()
+    resp = {
+        "status": "OK", "message": "", "data": {
+            "numero_ultima_factura": "100",
+            "ventas_exento": 0.0,
         }
-    })
+    }
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/data/data_numeracion', methods=['GET'])
 def data_numeracion():
-    log_request()
-    return jsonify({
-        "status":"OK","message":"",
-        "data":{"ultimaFactura":101,"ultimaNotaCredito":5,"ultimoDocumentoNoFiscal":20,"ultimoZ":100}
-    })
+    if not check_auth():
+        return unauthorized()
+    resp = {
+        "status": "OK", "message": "",
+        "data": {"ultimaFactura": 101, "ultimaNotaCredito": 5, "ultimoDocumentoNoFiscal": 20, "ultimoZ": 100}
+    }
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/send-raw', methods=['POST'])
 def send_raw():
-    log_request()
-    return jsonify({"status":"OK","message":""})
+    if not check_auth():
+        return unauthorized()
+    resp = {"status": "OK", "message": ""}
+    log_request(resp)
+    return jsonify(resp)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
