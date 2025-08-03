@@ -173,8 +173,15 @@ def clear_logs():
 
 @app.route('/api/logs', methods=['GET'])
 def api_get_logs():
-    if not check_auth():
-        return unauthorized()
+    # Si viene desde Odoo (con token) validamos, si no, dejamos pasar para el dashboard
+    token_empresa = request.headers.get('X-HKA-Token')
+    token_password = request.headers.get('X-HKA-Password')
+
+    # ✅ Solo exigir auth si hay cabeceras -> Odoo
+    if token_empresa or token_password:
+        if not check_auth():
+            return unauthorized()
+
     with log_lock:
         try:
             if os.path.exists(LOG_FILE):
@@ -185,6 +192,7 @@ def api_get_logs():
         except (IOError, json.JSONDecodeError):
             current_logs = []
     return jsonify(current_logs)
+
 
 # ===========================
 #  Endpoints fiscales
