@@ -1,310 +1,170 @@
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for
+from flask import Flask, request, jsonify, redirect, url_for
 from datetime import datetime
-import os
-import json
-import threading
+import os, json, threading
 
 app = Flask(__name__)
 
-# Tokens válidos fijos para pruebas
 VALID_TOKEN_EMPRESA = "abcd1234"
 VALID_TOKEN_PASSWORD = "abcd1234"
-
-# Almacén en memoria de peticiones para el dashboard
 LOGS = []
 LOG_FILE = 'request_logs.json'
 log_lock = threading.Lock()
 
-# Cargar logs existentes al inicio
-try:
-    with log_lock:
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, 'r') as f:
-                LOGS = json.load(f)
-except (IOError, json.JSONDecodeError):
-    LOGS = []
-
-# ===========================
-#  Dashboard HTML Template
-# ===========================
-DASHBOARD_TEMPLATE = """
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <title>Dashboard Mock printer</title>
-  <style>
-    body { font-family: sans-serif; padding: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; vertical-align: top; }
-    th { background: #f4f4f4; }
-    tr:nth-child(even) { background: #fafafa; }
-    pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
-    .controls { margin-bottom: 1em; }
-    .unauthorized { background-color: #ffe5e5; }
-  </style>
-</head>
-<body>
-  <h1>Dashboard Mock printer</h1>
-  <div class="controls">
-    <form action="/clear-logs" method="post" style="display: inline;">
-        <button type="submit">Clear Logs</button>
-    </form>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th><th>Timestamp</th><th>Método</th><th>Endpoint</th><th>Datos</th><th>Respuesta</th>
-      </tr>
-    </thead>
-    <tbody id="log-table-body">
-      {% for entry in logs|reverse %}
-      <tr class="{% if entry.response and entry.response.status == 401 %}unauthorized{% endif %}">
-        <td>{{ loop.index }}</td>
-        <td>{{ entry.time }}</td>
-        <td>{{ entry.method }}</td>
-        <td>{{ entry.path }}</td>
-        <td><pre>{{ entry.data | tojson(indent=2) }}</pre></td>
-        <td><pre>{{ entry.response | tojson(indent=2) }}</pre></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <script>
-    async function fetchLogs() {
-      const res = await fetch('/api/logs');
-      const logs = await res.json();
-      const tbody = document.getElementById('log-table-body');
-      tbody.innerHTML = '';
-      logs.slice().reverse().forEach((entry, idx) => {
-        const tr = document.createElement('tr');
-        if (entry.response && entry.response.status == 401) {
-            tr.classList.add('unauthorized');
-        }
-        const indexCell = document.createElement('td');
-        indexCell.textContent = idx + 1;
-        tr.appendChild(indexCell);
-        ['time', 'method', 'path'].forEach(key => {
-          const td = document.createElement('td');
-          td.textContent = entry[key];
-          tr.appendChild(td);
-        });
-        const dataTd = document.createElement('td');
-        const preData = document.createElement('pre');
-        preData.textContent = JSON.stringify(entry.data, null, 2);
-        dataTd.appendChild(preData);
-        tr.appendChild(dataTd);
-
-        const respTd = document.createElement('td');
-        const preResp = document.createElement('pre');
-        preResp.textContent = JSON.stringify(entry.response, null, 2);
-        respTd.appendChild(preResp);
-        tr.appendChild(respTd);
-
-        tbody.appendChild(tr);
-      });
-    }
-    fetchLogs();
-    setInterval(fetchLogs, 1000);
-  </script>
-</body>
-</html>
-"""
-
-# ===========================
-#  Helper: verificar token
-# ===========================
-def check_auth():
-    token_empresa = request.headers.get('X-printer-Token')
-    token_password = request.headers.get('X-printer-Password')
-    return (token_empresa == VALID_TOKEN_EMPRESA and token_password == VALID_TOKEN_PASSWORD)
-
-# ===========================
-#  Función para registrar logs
-# ===========================
-def log_request(response_data=None):
-    data = request.get_json() if request.method == 'POST' else dict(request.args)
-    new_log = {
-        'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'method': request.method,
-        'path': request.path,
-        'data': data,
-        'response': response_data or {}
-    }
-    with log_lock:
-        LOGS.append(new_log)
+# Carga inicial de logs
+if os.path.exists(LOG_FILE):
+    with open(LOG_FILE, 'r') as f:
         try:
-            with open(LOG_FILE, 'w') as f:
-                json.dump(LOGS, f, indent=2)
-        except IOError as e:
-            print(f"Error writing to log file: {e}")
-
-# ===========================
-#  Rutas principales
-# ===========================
-@app.route('/', methods=['GET', 'HEAD'])
-def index():
-    return redirect(url_for('dashboard'))
-
-@app.route('/dashboard', methods=['GET'])
-def dashboard():
-    with log_lock:
-        try:
-            if os.path.exists(LOG_FILE):
-                with open(LOG_FILE, 'r') as f:
-                    current_logs = json.load(f)
-            else:
-                current_logs = []
-        except (IOError, json.JSONDecodeError):
-            current_logs = []
-    return render_template_string(DASHBOARD_TEMPLATE, logs=current_logs)
-
-@app.route('/clear-logs', methods=['POST'])
-def clear_logs():
-    global LOGS
-    with log_lock:
-        LOGS = []
-        if os.path.exists(LOG_FILE):
-            try:
-                os.remove(LOG_FILE)
-            except OSError as e:
-                print(f"Error removing log file: {e}")
-    return redirect(url_for('dashboard'))
-
-@app.route('/api/logs', methods=['GET'])
-def api_get_logs():
-    # Si viene desde Odoo (con token) validamos, si no, dejamos pasar para el dashboard
-    token_empresa = request.headers.get('X-printer-Token')
-    token_password = request.headers.get('X-printer-Password')
-
-    # ✅ Solo exigir auth si hay cabeceras -> Odoo
-    if token_empresa or token_password:
-        if not check_auth():
-            return unauthorized()
-
-    with log_lock:
-        try:
-            if os.path.exists(LOG_FILE):
-                with open(LOG_FILE, 'r') as f:
-                    current_logs = json.load(f)
-            else:
-                current_logs = []
-        except (IOError, json.JSONDecodeError):
-            current_logs = []
-    return jsonify(current_logs)
-
-
-# ===========================
-#  Endpoints fiscales
-# ===========================
-SAMPLE_DATA = {
-    "status": "OK",
-    "message": "",
-    "data": {
-        "nroFiscal": 12345,
-        "serial": "ABC123456",
-        "fecha": "2025-07-01 12:00",
-        "ultimoZ": 99,
-    }
-}
+            LOGS = json.load(f)
+        except:
+            LOGS = []
 
 def unauthorized():
-    resp = {"status": 401, "message": "Unauthorized: Invalid tokens"}
+    resp = {'status': 401, 'message': 'Unauthorized: Invalid tokens'}
     log_request(resp)
     return jsonify(resp), 401
 
+def check_auth():
+    return (request.headers.get('X-printer-Token') == VALID_TOKEN_EMPRESA
+            and request.headers.get('X-printer-Password') == VALID_TOKEN_PASSWORD)
+
+def log_request(response_data=None):
+    entry = {
+        'time': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'method': request.method,
+        'path': request.path,
+        'data': request.get_json() if request.method=='POST' else dict(request.args),
+        'response': response_data or {}
+    }
+    with log_lock:
+        LOGS.append(entry)
+        with open(LOG_FILE, 'w') as f:
+            json.dump(LOGS, f, indent=2)
+
+# --- ENDPOINTS FISCALES ---
+
 @app.route('/api/imprimir/factura', methods=['POST'])
 def imprimir_factura():
-    if not check_auth():
-        return unauthorized()
-    payload = request.get_json() or {}
-    # Generar respuesta dinámica para factura
+    if not check_auth(): return unauthorized()
+    p = request.get_json() or {}
     now = datetime.now()
-    nroFiscal = int(now.timestamp()) % 100000
-    serial = payload.get('backendRef') or f"SER{nroFiscal}"
-    fecha = now.strftime("%Y-%m-%d %H:%M")
-    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
+    nro = int(now.timestamp()) % 100000
     resp = {
         'status': 'OK', 'message': '',
-        'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}
+        'data': {
+            'nroFiscal': nro,
+            'serial': p.get('backendRef', f"SER{nro}"),
+            'fecha': now.strftime("%Y-%m-%d %H:%M"),
+            'ultimoZ': 99
+        }
     }
     log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/factura', methods=['GET'])
 def reimprimir_factura():
-    if not check_auth():
-        return unauthorized()
-    # Reimpresión de factura: retornar lista de números en el rango
-    args = request.args
+    if not check_auth(): return unauthorized()
     try:
-        start = int(args.get('numDesde', 0))
-        end = int(args.get('numHasta', 0))
-    except ValueError:
+        start, end = int(request.args['numDesde']), int(request.args['numHasta'])
+    except:
         start = end = 0
-    data = list(range(start, end + 1))
-    resp = {'status': 'OK', 'message': '', 'data': data}
+    data = list(range(start, end+1))
+    resp = {'status':'OK','message':'','data':data}
     log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/nota-credito', methods=['POST'])
-def nota_credito():
-    if not check_auth():
-        return unauthorized()
-    payload = request.get_json() or {}
-    # Generar respuesta dinámica para nota de crédito
+def imprimir_nota_credito():
+    if not check_auth(): return unauthorized()
+    p = request.get_json() or {}
     now = datetime.now()
-    nroFiscal = int(now.timestamp()) % 100000
-    serial = payload.get('serial') or f"NC{nroFiscal}"
-    fecha = now.strftime("%Y-%m-%d %H:%M")
-    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
+    nro = int(now.timestamp()) % 100000
     resp = {
-        'status': 'OK', 'message': '',
-        'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}
+        'status':'OK','message':'',
+        'data': {
+            'nroFiscal': nro,
+            'serial': p.get('serial', f"NC{nro}"),
+            'fecha': now.strftime("%Y-%m-%d %H:%M"),
+            'ultimoZ': 99
+        }
     }
     log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/nota-credito', methods=['GET'])
-def reimprimir_nota():
-    if not check_auth():
-        return unauthorized()
-    # Reimpresión de nota de crédito: lista de números en el rango
-    args = request.args
+def reimprimir_nota_credito():
+    if not check_auth(): return unauthorized()
     try:
-        start = int(args.get('numDesde', 0))
-        end = int(args.get('numHasta', 0))
-    except ValueError:
+        start, end = int(request.args['numDesde']), int(request.args['numHasta'])
+    except:
         start = end = 0
-    data = list(range(start, end + 1))
-    resp = {'status': 'OK', 'message': '', 'data': data}
+    data = list(range(start, end+1))
+    resp = {'status':'OK','message':'','data':data}
     log_request(resp)
     return jsonify(resp)
 
 @app.route('/api/imprimir/no-fiscal', methods=['POST'])
 def no_fiscal():
-    if not check_auth():
-        return unauthorized()
-    resp = {"status": "OK", "message": ""}
+    if not check_auth(): return unauthorized()
+    resp = {'status':'OK','message':''}
     log_request(resp)
     return jsonify(resp)
 
-@app.route('/api/imprimir/reporte_x', methods=['GET', 'POST'])
+@app.route('/api/imprimir/reporte_x', methods=['GET','POST'])
 def reporte_x():
-    if not check_auth():
-        return unauthorized()
-    # Generar respuesta dinámica para reporte X
+    if not check_auth(): return unauthorized()
     now = datetime.now()
-    nroFiscal = int(now.timestamp()) % 100000
-    serial = f"RX{nroFiscal}"
-    fecha = now.strftime("%Y-%m-%d %H:%M")
-    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
-    resp = {'status': 'OK', 'message': '', 'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}}
+    nro = int(now.timestamp()) % 100000
+    resp = {
+        'status':'OK','message':'',
+        'data': {
+            'nroFiscal': nro,
+            'serial': f"RX{nro}",
+            'fecha': now.strftime("%Y-%m-%d %H:%M"),
+            'ultimoZ': 99
+        }
+    }
     log_request(resp)
     return jsonify(resp)
 
-@app.route('/api/imprimir/reporte_z', methods=['GET', 'POST'])
+@app.route('/api/imprimir/reporte_z', methods=['GET','POST'])
 def reporte_z():
-     if not check_auth():
-         return unauthorized()
-   
+    if not check_auth(): return unauthorized()
+    now = datetime.now()
+    z = 99
+    if request.method=='GET':
+        if 'numDesde' in request.args and 'numHasta' in request.args:
+            try:
+                s,e = int(request.args['numDesde']),int(request.args['numHasta'])
+            except: s=e=0
+            data = list(range(s,e+1))
+        elif 'fechaDesde' in request.args and 'fechaHasta' in request.args:
+            data = {'fechaDesde':request.args['fechaDesde'],'fechaHasta':request.args['fechaHasta']}
+        else:
+            data = {
+                'numero_ultimo_reporte_z': z,
+                'fecha_ultimo_reporte_z': now.strftime("%Y-%m-%d"),
+                'hora_ultimo_reporte_z': now.strftime("%H:%M"),
+                'numero_ultima_factura': str(z+1),
+                'numero_impresora': 'ABC123456'
+            }
+    else:
+        data = {
+            'numero_ultimo_reporte_z': z,
+            'fecha_ultimo_reporte_z': now.strftime("%Y-%m-%d"),
+            'hora_ultimo_reporte_z': now.strftime("%H:%M"),
+            'numero_ultima_factura': str(z+1),
+            'numero_impresora': 'ABC123456'
+        }
+    resp = {'status':'OK','message':'','data':data}
+    log_request(resp)
+    return jsonify(resp)
+
+@app.route('/api/data/data_numeracion', methods=['GET'])
+def data_numeracion():
+    if not check_auth(): return unauthorized()
+    resp = {'status':'OK','message':'','data':{'ultimaFactura':101,'ultimaNotaCredito':5,'ultimoDocumentoNoFiscal':20,'ultimoZ':100}}
+    log_request(resp)
+    return jsonify(resp)
+
+if __name__=='__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
