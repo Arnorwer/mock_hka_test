@@ -218,8 +218,8 @@ def imprimir_factura():
     if not check_auth():
         return unauthorized()
     data = request.get_json() or {}
+    # Enviar respuesta con formato estándar sin campo 'received'
     resp = SAMPLE_DATA.copy()
-    resp['received'] = data
     log_request(resp)
     return jsonify(resp)
 
@@ -227,7 +227,8 @@ def imprimir_factura():
 def reimprimir_factura():
     if not check_auth():
         return unauthorized()
-    resp = {"status": "OK", "message": ""}
+    # Respuesta de reimpresión de facturas con data vacía
+    resp = {"status": "OK", "message": "", "data": []}
     log_request(resp)
     return jsonify(resp)
 
@@ -236,8 +237,8 @@ def nota_credito():
     if not check_auth():
         return unauthorized()
     data = request.get_json() or {}
+    # Enviar respuesta con formato estándar sin campo 'received'
     resp = SAMPLE_DATA.copy()
-    resp['received'] = data
     log_request(resp)
     return jsonify(resp)
 
@@ -245,7 +246,8 @@ def nota_credito():
 def reimprimir_nota():
     if not check_auth():
         return unauthorized()
-    resp = {"status": "OK", "message": ""}
+    # Respuesta de reimpresión de notas de crédito con data vacía
+    resp = {"status": "OK", "message": "", "data": []}
     log_request(resp)
     return jsonify(resp)
 
@@ -261,6 +263,7 @@ def no_fiscal():
 def reporte_x():
     if not check_auth():
         return unauthorized()
+    # Respuesta de Reporte X con datos de ejemplo
     log_request(SAMPLE_DATA)
     return jsonify(SAMPLE_DATA)
 
@@ -268,8 +271,24 @@ def reporte_x():
 def reporte_z():
     if not check_auth():
         return unauthorized()
-    log_request(SAMPLE_DATA)
-    return jsonify(SAMPLE_DATA)
+    if request.method == 'GET':
+        args = request.args
+        # Reimpresión por número
+        if 'numDesde' in args and 'numHasta' in args:
+            resp = {"status": "OK", "message": ""}
+        # Reimpresión por fecha
+        elif 'fechaDesde' in args and 'fechaHasta' in args:
+            resp = {"status": "OK", "message": ""}
+        # Impresión inicial de reporte Z
+        else:
+            resp = SAMPLE_DATA.copy()
+    else:
+        # POST: impresión inicial de reporte Z
+        resp = SAMPLE_DATA.copy()
+    log_request(resp)
+    return jsonify(resp)
+
+# Reimpresiones de reporte Z se gestionan en /api/imprimir/reporte_z con query params numDesde/numHasta o fechaDesde/fechaHasta
 
 @app.route('/api/data_z', methods=['GET'])
 def data_z():
