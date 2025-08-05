@@ -217,9 +217,17 @@ def unauthorized():
 def imprimir_factura():
     if not check_auth():
         return unauthorized()
-    data = request.get_json() or {}
-    # Enviar respuesta con formato estándar sin campo 'received'
-    resp = SAMPLE_DATA.copy()
+    payload = request.get_json() or {}
+    # Generar respuesta dinámica para factura
+    now = datetime.now()
+    nroFiscal = int(now.timestamp()) % 100000
+    serial = payload.get('backendRef') or f"SER{nroFiscal}"
+    fecha = now.strftime("%Y-%m-%d %H:%M")
+    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
+    resp = {
+        'status': 'OK', 'message': '',
+        'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}
+    }
     log_request(resp)
     return jsonify(resp)
 
@@ -227,8 +235,15 @@ def imprimir_factura():
 def reimprimir_factura():
     if not check_auth():
         return unauthorized()
-    # Respuesta de reimpresión de facturas con data vacía
-    resp = {"status": "OK", "message": "", "data": []}
+    # Reimpresión de factura: retornar lista de números en el rango
+    args = request.args
+    try:
+        start = int(args.get('numDesde', 0))
+        end = int(args.get('numHasta', 0))
+    except ValueError:
+        start = end = 0
+    data = list(range(start, end + 1))
+    resp = {'status': 'OK', 'message': '', 'data': data}
     log_request(resp)
     return jsonify(resp)
 
@@ -236,9 +251,17 @@ def reimprimir_factura():
 def nota_credito():
     if not check_auth():
         return unauthorized()
-    data = request.get_json() or {}
-    # Enviar respuesta con formato estándar sin campo 'received'
-    resp = SAMPLE_DATA.copy()
+    payload = request.get_json() or {}
+    # Generar respuesta dinámica para nota de crédito
+    now = datetime.now()
+    nroFiscal = int(now.timestamp()) % 100000
+    serial = payload.get('serial') or f"NC{nroFiscal}"
+    fecha = now.strftime("%Y-%m-%d %H:%M")
+    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
+    resp = {
+        'status': 'OK', 'message': '',
+        'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}
+    }
     log_request(resp)
     return jsonify(resp)
 
@@ -246,8 +269,15 @@ def nota_credito():
 def reimprimir_nota():
     if not check_auth():
         return unauthorized()
-    # Respuesta de reimpresión de notas de crédito con data vacía
-    resp = {"status": "OK", "message": "", "data": []}
+    # Reimpresión de nota de crédito: lista de números en el rango
+    args = request.args
+    try:
+        start = int(args.get('numDesde', 0))
+        end = int(args.get('numHasta', 0))
+    except ValueError:
+        start = end = 0
+    data = list(range(start, end + 1))
+    resp = {'status': 'OK', 'message': '', 'data': data}
     log_request(resp)
     return jsonify(resp)
 
@@ -263,65 +293,18 @@ def no_fiscal():
 def reporte_x():
     if not check_auth():
         return unauthorized()
-    # Respuesta de Reporte X con datos de ejemplo
-    log_request(SAMPLE_DATA)
-    return jsonify(SAMPLE_DATA)
+    # Generar respuesta dinámica para reporte X
+    now = datetime.now()
+    nroFiscal = int(now.timestamp()) % 100000
+    serial = f"RX{nroFiscal}"
+    fecha = now.strftime("%Y-%m-%d %H:%M")
+    ultimoZ = SAMPLE_DATA['data']['ultimoZ']
+    resp = {'status': 'OK', 'message': '', 'data': {'nroFiscal': nroFiscal, 'serial': serial, 'fecha': fecha, 'ultimoZ': ultimoZ}}
+    log_request(resp)
+    return jsonify(resp)
 
 @app.route('/api/imprimir/reporte_z', methods=['GET', 'POST'])
 def reporte_z():
-    if not check_auth():
-        return unauthorized()
-    if request.method == 'GET':
-        args = request.args
-        # Reimpresión por número
-        if 'numDesde' in args and 'numHasta' in args:
-            resp = {"status": "OK", "message": ""}
-        # Reimpresión por fecha
-        elif 'fechaDesde' in args and 'fechaHasta' in args:
-            resp = {"status": "OK", "message": ""}
-        # Impresión inicial de reporte Z
-        else:
-            resp = SAMPLE_DATA.copy()
-    else:
-        # POST: impresión inicial de reporte Z
-        resp = SAMPLE_DATA.copy()
-    log_request(resp)
-    return jsonify(resp)
-
-# Reimpresiones de reporte Z se gestionan en /api/imprimir/reporte_z con query params numDesde/numHasta o fechaDesde/fechaHasta
-
-@app.route('/api/data_z', methods=['GET'])
-def data_z():
-    if not check_auth():
-        return unauthorized()
-    resp = {
-        "status": "OK", "message": "", "data": {
-            "numero_ultima_factura": "100",
-            "ventas_exento": 0.0,
-        }
-    }
-    log_request(resp)
-    return jsonify(resp)
-
-@app.route('/api/data/data_numeracion', methods=['GET'])
-def data_numeracion():
-    if not check_auth():
-        return unauthorized()
-    resp = {
-        "status": "OK", "message": "",
-        "data": {"ultimaFactura": 101, "ultimaNotaCredito": 5, "ultimoDocumentoNoFiscal": 20, "ultimoZ": 100}
-    }
-    log_request(resp)
-    return jsonify(resp)
-
-@app.route('/api/send-raw', methods=['POST'])
-def send_raw():
-    if not check_auth():
-        return unauthorized()
-    resp = {"status": "OK", "message": ""}
-    log_request(resp)
-    return jsonify(resp)
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+     if not check_auth():
+         return unauthorized()
+   
