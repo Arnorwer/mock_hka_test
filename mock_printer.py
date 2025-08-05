@@ -86,8 +86,12 @@ DASHBOARD_TEMPLATE = """
         preData.textContent = JSON.stringify(entry.data, null, 2);
         const preResp = document.createElement('pre');
         preResp.textContent = JSON.stringify(entry.response, null, 2);
-        tr.appendChild(Object.assign(document.createElement('td'), {appendChild: preData}));
-        tr.appendChild(Object.assign(document.createElement('td'), {appendChild: preResp}));
+        const dataTd = document.createElement('td');
+        dataTd.appendChild(preData);
+        tr.appendChild(dataTd);
+        const respTd = document.createElement('td');
+        respTd.appendChild(preResp);
+        tr.appendChild(respTd);
         tbody.appendChild(tr);
       });
     }
