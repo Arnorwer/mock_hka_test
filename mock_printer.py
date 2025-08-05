@@ -40,6 +40,45 @@ def log_request(response_data=None):
         with open(LOG_FILE, 'w') as f:
             json.dump(LOGS, f, indent=2)
 
+# Plantilla completa de datos para Reporte Z
+REPORT_Z_SUMMARY = {
+    'numero_ultimo_reporte_z': 100,
+    'fecha_ultimo_reporte_z': '2025-07-01',
+    'hora_ultimo_reporte_z': '12:00',
+    'numero_ultima_factura': '101',
+    'fecha_ultima_factura': '2025-07-01',
+    'hora_ultima_factura': '12:05',
+    'numero_ultima_nota_de_debito': '102',
+    'numero_ultima_nota_de_credito': '103',
+    'numero_ultimo_doc_no_fiscal': '104',
+    'ventas_exento': 0.0,
+    'base_imponible_ventas_iva_g': 100.0,
+    'impuesto_iva_g': 16.0,
+    'base_imponible_ventas_iva_r': 50.0,
+    'impuesto_iva_r': 8.0,
+    'base_imponible_ventas_iva_a': 20.0,
+    'impuesto_iva_a': 31.0,
+    'nota_de_debito_exento': 0.0,
+    'bi_iva_g_en_nota_de_debito': 0.0,
+    'impuesto_iva_g_en_nota_de_debito': 0.0,
+    'bi_iva_r_en_nota_de_debito': 0.0,
+    'impuesto_iva_r_en_nota_de_debito': 0.0,
+    'bi_iva_a_en_nota_de_debito': 0.0,
+    'impuesto_iva_a_en_nota_de_debito': 0.0,
+    'nota_de_credito_exento': 0.0,
+    'bi_iva_g_en_nota_de_credito': 0.0,
+    'impuesto_iva_g_en_nota_de_credito': 0.0,
+    'bi_iva_r_en_nota_de_credito': 0.0,
+    'impuesto_iva_r_en_nota_de_credito': 0.0,
+    'bi_iva_a_en_nota_de_credito': 0.0,
+    'impuesto_iva_a_en_nota_de_credito': 0.0,
+    'numero_impresora': 'ABC123456',
+    'bi_igtf_en_factura': 0.0,
+    'impuesto_igtf_en_factura': 0.0,
+    'bi_igtf_en_nota_de_credito': 0.0,
+    'impuesto_igtf_en_nota_de_credito': 0.0,
+}
+
 # --- ENDPOINTS FISCALES ---
 
 @app.route('/api/imprimir/factura', methods=['POST'])
@@ -129,33 +168,27 @@ def reporte_x():
 @app.route('/api/imprimir/reporte_z', methods=['GET','POST'])
 def reporte_z():
     if not check_auth(): return unauthorized()
-    now = datetime.now()
-    z = 99
-    if request.method=='GET':
-        if 'numDesde' in request.args and 'numHasta' in request.args:
-            try:
-                s,e = int(request.args['numDesde']),int(request.args['numHasta'])
-            except: s=e=0
-            data = list(range(s,e+1))
-        elif 'fechaDesde' in request.args and 'fechaHasta' in request.args:
-            data = {'fechaDesde':request.args['fechaDesde'],'fechaHasta':request.args['fechaHasta']}
-        else:
-            data = {
-                'numero_ultimo_reporte_z': z,
-                'fecha_ultimo_reporte_z': now.strftime("%Y-%m-%d"),
-                'hora_ultimo_reporte_z': now.strftime("%H:%M"),
-                'numero_ultima_factura': str(z+1),
-                'numero_impresora': 'ABC123456'
-            }
+    args = request.args
+    # Reimpresión por número
+    if request.method=='GET' and 'numDesde' in args and 'numHasta' in args:
+        try:
+            start = int(args['numDesde']); end = int(args['numHasta'])
+        except:
+            start = end = 0
+        resp = {'status':'OK','message':'','data': list(range(start, end+1))}
+    # Reimpresión por fecha
+    elif request.method=='GET' and 'fechaDesde' in args and 'fechaHasta' in args:
+        resp = {'status':'OK','message':'','data': {'fechaDesde': args['fechaDesde'], 'fechaHasta': args['fechaHasta']}}
+    # Impresión inicial o POST
     else:
-        data = {
-            'numero_ultimo_reporte_z': z,
-            'fecha_ultimo_reporte_z': now.strftime("%Y-%m-%d"),
-            'hora_ultimo_reporte_z': now.strftime("%H:%M"),
-            'numero_ultima_factura': str(z+1),
-            'numero_impresora': 'ABC123456'
-        }
-    resp = {'status':'OK','message':'','data':data}
+        resp = {'status':'OK','message':'','data': REPORT_Z_SUMMARY}
+    log_request(resp)
+    return jsonify(resp)
+@app.route('/api/data_z', methods=['GET'])
+def data_z():
+    if not check_auth(): return unauthorized()
+    # Consulta de reporte Z específico
+    resp = {'status':'OK','message':'','data': REPORT_Z_SUMMARY}
     log_request(resp)
     return jsonify(resp)
 
