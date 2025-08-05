@@ -32,7 +32,7 @@ DASHBOARD_TEMPLATE = """
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>Dashboard Mock HKA</title>
+  <title>Dashboard Mock printer</title>
   <style>
     body { font-family: sans-serif; padding: 20px; }
     table { width: 100%; border-collapse: collapse; margin-top: 1em; }
@@ -45,7 +45,7 @@ DASHBOARD_TEMPLATE = """
   </style>
 </head>
 <body>
-  <h1>Dashboard Mock HKA</h1>
+  <h1>Dashboard Mock printer</h1>
   <div class="controls">
     <form action="/clear-logs" method="post" style="display: inline;">
         <button type="submit">Clear Logs</button>
@@ -115,8 +115,8 @@ DASHBOARD_TEMPLATE = """
 #  Helper: verificar token
 # ===========================
 def check_auth():
-    token_empresa = request.headers.get('X-HKA-Token')
-    token_password = request.headers.get('X-HKA-Password')
+    token_empresa = request.headers.get('X-printer-Token')
+    token_password = request.headers.get('X-printer-Password')
     return (token_empresa == VALID_TOKEN_EMPRESA and token_password == VALID_TOKEN_PASSWORD)
 
 # ===========================
@@ -174,8 +174,8 @@ def clear_logs():
 @app.route('/api/logs', methods=['GET'])
 def api_get_logs():
     # Si viene desde Odoo (con token) validamos, si no, dejamos pasar para el dashboard
-    token_empresa = request.headers.get('X-HKA-Token')
-    token_password = request.headers.get('X-HKA-Password')
+    token_empresa = request.headers.get('X-printer-Token')
+    token_password = request.headers.get('X-printer-Password')
 
     # ✅ Solo exigir auth si hay cabeceras -> Odoo
     if token_empresa or token_password:

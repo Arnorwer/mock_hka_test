@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: mock-hka
+    name: mock-printer
     env: python
     region: frankfurt
     branch: main
     plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python mock_hka.py"
+    startCommand: "python mock_printer.py"
     autoDeploy: true
