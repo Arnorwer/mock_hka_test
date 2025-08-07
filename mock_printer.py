@@ -3,6 +3,8 @@ from datetime import datetime
 import os, json, threading
 
 app = Flask(__name__)
+# Do not sort JSON keys to preserve insertion order
+app.config['JSON_SORT_KEYS'] = False
 
 # Tokens fijos para pruebas
 VALID_TOKEN_EMPRESA = "abcd1234"
