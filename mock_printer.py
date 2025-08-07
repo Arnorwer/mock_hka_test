@@ -162,6 +162,14 @@ def unauthorized():
 def index():
     return redirect(url_for('dashboard'))
 
+@app.route('/api/send-raw', methods=['POST'])
+def send_raw():
+    if not check_auth():
+        return unauthorized()
+    resp = {'status':'OK', 'message':''}
+    log_request(resp)
+    return jsonify(resp)
+
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
     with log_lock:
